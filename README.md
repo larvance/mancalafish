@@ -86,7 +86,7 @@ choco install emscripten
 Use the following command to compile:
 
 ```bash
-emcc mancala.c -o mancala.js -s EXPORTED_FUNCTIONS='["_get_best_move", "_evaluate"]' -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
+emcc src/engine.c -o mancala.js -s EXPORTED_FUNCTIONS='["_get_best_move", "_evaluate"]' -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
 ```
 
 This gives you a WASM file and a JavaScript file that you can use in a website's code.

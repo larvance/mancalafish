@@ -171,7 +171,7 @@ int heuristic_evaluate(const MancalaState *state) {
     return get_home_pit(state, 0) - get_home_pit(state, 1);
 }
 
-int minimax(MancalaState state, int depth, int alpha, int beta, int turn) {
+int evaluate(MancalaState state, int depth, int alpha, int beta, int turn) { // NOLINT(*-no-recursion)
     if (depth == 0 || state.pits == 0) {
         return heuristic_evaluate(&state);
     }
@@ -187,7 +187,7 @@ int minimax(MancalaState state, int depth, int alpha, int beta, int turn) {
         MancalaState newState = state;
         int nextTurn = make_move(&newState, i, turn);
 
-        int value = minimax(newState, depth - 1, alpha, beta, nextTurn);
+        int value = evaluate(newState, depth - 1, alpha, beta, nextTurn);
 
         if (turn == 1) {
             if (value > bestValue) bestValue = value;
@@ -216,7 +216,7 @@ int get_best_move(MancalaState state, int depth, int turn, int *eval) {
         MancalaState newState = state;
         int nextTurn = make_move(&newState, i, turn);
 
-        int moveValue = minimax(newState, depth - 1, INT_MIN, INT_MAX, nextTurn);
+        int moveValue = evaluate(newState, depth - 1, INT_MIN, INT_MAX, nextTurn);
 
         if ((turn == 1 && moveValue > bestValue) || (turn == 0 && moveValue < bestValue)) {
             bestValue = moveValue;

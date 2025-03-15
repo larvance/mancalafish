@@ -37,7 +37,7 @@ int make_move(MancalaState *state, int index, int turn);
 
 int heuristic_evaluate(const MancalaState *state);
 
-int minimax(MancalaState state, int depth, int alpha, int beta, int turn);
+int evaluate(MancalaState state, int depth, int alpha, int beta, int turn);
 
 int get_best_move(MancalaState state, int depth, int turn, int *eval);
 
