@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-void print_bits(uint64_t num);
-
 typedef struct {
     uint64_t pits;
     uint16_t home_pits;
@@ -40,5 +38,7 @@ int heuristic_evaluate(const MancalaState *state);
 int evaluate(MancalaState state, int depth, int alpha, int beta, int turn);
 
 int get_best_move(MancalaState state, int depth, int turn, int *eval);
+
+int fetch_game_counter();
 
 #endif //MANCALAFISH_ENGINE_H

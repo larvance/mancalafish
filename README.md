@@ -6,12 +6,20 @@ MancalaFish is an AI that can play the Turkish variation of the game Mancala.
 
 If you are on Windows, use Ubuntu WSL. If you want an executable file that can be run on Windows, use MinGW/MSYS32.
 
+You can add the following flags at the end of your GCC command:
+
+- `-O3`: Optimize for speed, recommended
+- `-DAI_STARTS_FIRST`: player.c macro that makes the AI start first
+- `-DDEPTH=14`: Sets the depth (default=12)
+- `-DUSE_OPENMP`: Use OpenMP for parallelization (I think it's broken right now)
+- `-DCONTINUOUS_MOVES_AS_ONE_DEPTH`: Count moves that the same player makes at once as one depth
+
 ### Compiling the interactive player
 
 Use the following command to compile with GCC (Or use cmake):
 
 ```bash
-gcc src/player.c src/engine.c -std=c99 -O3 -o mancala_player
+gcc src/player.c src/engine.c -fopenmp -std=c99 -O3 -o mancala_player
 ```
 
 Then just run the `mancala_player.exe` or `./mancala_player` file and play with it.
@@ -24,7 +32,7 @@ notates the top left. 5 notates the top right. Just type in which pit you want t
 Use the following command to compile:
 
 ```bash
-gcc src/engine_cli.c src/engine.c -std=c99 -O3 -o mancala_engine
+gcc src/engine_cli.c src/engine.c -fopenmp -std=c99 -O3 -o mancala_engine
 ```
 
 Run the `mancala_engine.exe` or `./mancala_engine` file.

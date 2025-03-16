@@ -5,8 +5,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-include_directories(.)
+include_directories(./src/include)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+find_package(OpenMP REQUIRED)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(your_target PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
-add_executable(mancalafish src/engine.c src/player.c)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DDEPTH=16 -mavx")
+
+add_executable(mancalafish src/utils.c
+        src/engine.c
+        src/player.c)

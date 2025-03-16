@@ -2,17 +2,14 @@
 #include <stdio.h>
 #include <limits.h>
 #include "engine.h"
+#include "utils.h"
 
 #define mul5(x) (((x) << 2) + (x))
 #define mul6(x) (((x) << 2) + ((x) << 1))
 
-void print_bits(uint64_t num) {
-    for (int i = sizeof(num) * 8 - 1; i >= 0; i--) {
-        putchar((num & (1 << i)) ? '1' : '0');
-        if (i % 5 == 0) putchar(' ');
-    }
-    putchar('\n');
-}
+#if USE_OPENMP == 1
+#include <omp.h>
+#endif
 
 // value: [0, 31]
 void set_pit(MancalaState *state, int index, uint8_t value) {
@@ -71,30 +68,24 @@ void print_state(const MancalaState *state) {
 }
 
 void check_end(MancalaState *state, int turn) {
-    int start = turn * 6;
-    int end = start + 6;
-
     int cleaned = 1;
 
-    for (int i = start; i < end; i++) {
+    for (int i = 0; i <= 5; i++) {
         if (get_pit(state, i) != 0) {
             cleaned = 0;
             break;
         }
     }
 
-    start = 6 - start;
-    end = start + 6;
-
     if (cleaned == 0) {
-        for (int i = start; i < end; i++) {
+        for (int i = 6; i <= 11; i++) {
             if (get_pit(state, i) != 0) return; // both rows have at least 1
         }
     }
 
     int accumulated = 0;
 
-    for (int i = start; i < end; i++) {
+    for (int i = 0; i <= 11; i++) {
         accumulated += get_pit(state, i);
     }
 
@@ -109,9 +100,9 @@ int make_move(MancalaState *state, int index, int turn) {
 
     if (stones == 1) {
         set_pit(state, index, 0);
-        int is_11 = index == 11;
-        if (index == 5 || is_11) {
-            add_to_home_pit(state, is_11, 1);
+        int wanted = turn ? 11 : 5;
+        if (index == wanted) {
+            add_to_home_pit(state, turn, 1);
             check_end(state, turn);
             return turn;
         }
@@ -127,17 +118,20 @@ int make_move(MancalaState *state, int index, int turn) {
 
     while (stones > 0) {
         pos = (pos + 1) % 14;
-        stones--;
 
         if (pos == 6) {
-            add_to_home_pit(state, 0, 1);
             offset = -1;
+            if (turn == 1) continue;
+            add_to_home_pit(state, 0, 1);
         } else if (pos == 13) {
+            offset = stones == 1 ? -2 : 0;
+            if (turn == 0) continue;
             add_to_home_pit(state, 1, 1);
-            offset = 0;
         } else {
             add_to_pit(state, pos + offset, 1);
         }
+
+        stones--;
     }
 
     if ((pos == 6 && !turn) || (pos == 13 && turn)) return turn;
@@ -149,8 +143,8 @@ int make_move(MancalaState *state, int index, int turn) {
 
     if ((pos > 6) != turn && end_stones % 2 == 0) {
         set_pit(state, pos_off, 0);
-        add_to_home_pit(state, turn, end_stones); // impossible for game to end in this case
-
+        add_to_home_pit(state, turn, end_stones);
+        check_end(state, turn);
         return !turn;
     }
 
@@ -171,30 +165,38 @@ int heuristic_evaluate(const MancalaState *state) {
     return get_home_pit(state, 0) - get_home_pit(state, 1);
 }
 
+int position_counter = 0;
+
 int evaluate(MancalaState state, int depth, int alpha, int beta, int turn) { // NOLINT(*-no-recursion)
     if (depth == 0 || state.pits == 0) {
         return heuristic_evaluate(&state);
     }
 
     int bestValue = turn ? INT_MIN : INT_MAX;
-
     int start = turn * 6;
     int end = start + 6;
 
     for (int i = start; i < end; i++) {
         if (get_pit(&state, i) == 0) continue;
 
+        position_counter++;
         MancalaState newState = state;
         int nextTurn = make_move(&newState, i, turn);
 
-        int value = evaluate(newState, depth - 1, alpha, beta, nextTurn);
+#if CONTINUOUS_MOVES_AS_ONE_DEPTH == 1
+        int nextDepth = depth - (nextTurn != turn);
+#else
+        int nextDepth = depth - 1;
+#endif
+
+        int value = evaluate(newState, nextDepth, alpha, beta, nextTurn);
 
         if (turn == 1) {
-            if (value > bestValue) bestValue = value;
-            if (value > alpha) alpha = value;
+            bestValue = (value > bestValue) ? value : bestValue;
+            alpha = (value > alpha) ? value : alpha;
         } else {
-            if (value < bestValue) bestValue = value;
-            if (value < beta) beta = value;
+            bestValue = (value < bestValue) ? value : bestValue;
+            beta = (value < beta) ? value : beta;
         }
 
         if (beta <= alpha) break;
@@ -205,11 +207,41 @@ int evaluate(MancalaState state, int depth, int alpha, int beta, int turn) { // 
 
 int get_best_move(MancalaState state, int depth, int turn, int *eval) {
     int bestMove = -1;
-    int bestValue = turn ? INT_MIN : INT_MAX;
+    int bestValue = turn ? INT_MAX : INT_MIN;
 
     int start = turn * 6;
     int end = start + 6;
 
+#if USE_OPENMP == 1
+#pragma omp parallel
+    {
+        int localBestMove = -1;
+        int localBestValue = turn ? INT_MAX : INT_MIN;
+
+#pragma omp for nowait
+        for (int i = start; i < end; i++) {
+            if (get_pit(&state, i) == 0) continue;
+
+            MancalaState newState = state;
+            int nextTurn = make_move(&newState, i, turn);
+
+            int moveValue = evaluate(newState, depth - 1, INT_MIN, INT_MAX, nextTurn);
+
+            if ((turn == 1 && moveValue < localBestValue) || (turn == 0 && moveValue > localBestValue)) {
+                localBestValue = moveValue;
+                localBestMove = i;
+            }
+        }
+
+#pragma omp critical
+        {
+            if ((turn == 1 && localBestValue < bestValue) || (turn == 0 && localBestValue < bestValue)) {
+                bestValue = localBestValue;
+                bestMove = localBestMove;
+            }
+        }
+    }
+#else
     for (int i = start; i < end; i++) {
         if (get_pit(&state, i) == 0) continue;
 
@@ -218,13 +250,20 @@ int get_best_move(MancalaState state, int depth, int turn, int *eval) {
 
         int moveValue = evaluate(newState, depth - 1, INT_MIN, INT_MAX, nextTurn);
 
-        if ((turn == 1 && moveValue > bestValue) || (turn == 0 && moveValue < bestValue)) {
+        if ((turn == 1 && moveValue < bestValue) || (turn == 0 && moveValue > bestValue)) {
             bestValue = moveValue;
             bestMove = i;
         }
     }
+#endif
 
     *eval = bestValue;
-
     return bestMove;
 }
+
+int fetch_game_counter() {
+    int counter = position_counter;
+    position_counter = 0;
+    return counter;
+}
+
